@@ -1,0 +1,25 @@
+node_modules/
+dist/
+build/
+.next/
+.env
+.env.local
+*.log
+coverage/
+.DS_Store
+Thumbs.db
+
+# Hardhat
+cache/
+artifacts/
+typechain-types/
+
+# Prisma
+backend/prisma/migrations/
+
+# IDE
+.vscode/
+.idea/
+
+# Docker
+docker-compose.override.yml

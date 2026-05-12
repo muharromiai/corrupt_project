@@ -1,0 +1,277 @@
+// ============================================================
+// Prisma Schema — Sistem Keuangan Negara Anti Korupsi
+// ============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// ENUMS
+// ============================================================
+
+enum Role {
+  ADMIN
+  GOVERNMENT
+  OPERATOR
+  AUDITOR
+  PUBLIC
+}
+
+enum BudgetCategory {
+  INFRASTRUCTURE
+  EDUCATION
+  HEALTH
+  DEFENSE
+  SOCIAL_WELFARE
+  AGRICULTURE
+  TECHNOLOGY
+  TRANSPORTATION
+  ENERGY
+  OTHER
+}
+
+enum BudgetStatus {
+  DRAFT
+  ACTIVE
+  CLOSED
+}
+
+enum ProjectStatus {
+  PLANNING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum TransactionCategory {
+  DISBURSEMENT
+  PROCUREMENT
+  SALARY
+  GRANT
+  SUBSIDY
+  MAINTENANCE
+  OPERATIONAL
+  OTHER
+}
+
+enum TransactionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum AuditAction {
+  APPROVED
+  REJECTED
+  REVIEWED
+}
+
+enum ReportStatus {
+  SUBMITTED
+  UNDER_REVIEW
+  RESOLVED
+  DISMISSED
+}
+
+enum NotificationType {
+  INFO
+  WARNING
+  SUCCESS
+  ERROR
+}
+
+// ============================================================
+// MODELS
+// ============================================================
+
+model User {
+  id        String   @id @default(uuid())
+  name      String
+  email     String   @unique
+  password  String
+  role      Role     @default(PUBLIC)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  budgets       Budget[]
+  projects      Project[]
+  transactions  Transaction[]
+  auditLogs     AuditLog[]
+  reports       Report[]
+  notifications Notification[]
+  activityLogs  ActivityLog[]
+
+  @@map("users")
+}
+
+model Budget {
+  id              String         @id @default(uuid())
+  createdById     String
+  name            String
+  category        BudgetCategory
+  fiscalYear      Int
+  totalAmount     Decimal        @db.Decimal(20, 2)
+  allocatedAmount Decimal        @default(0) @db.Decimal(20, 2)
+  remainingAmount Decimal        @db.Decimal(20, 2)
+  description     String         @db.Text
+  status          BudgetStatus   @default(DRAFT)
+  blockchainTxHash String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  createdBy    User          @relation(fields: [createdById], references: [id])
+  projects     Project[]
+  transactions Transaction[]
+  reports      Report[]
+
+  @@index([createdById])
+  @@index([fiscalYear])
+  @@index([status])
+  @@map("budgets")
+}
+
+model Project {
+  id              String        @id @default(uuid())
+  budgetId        String
+  createdById     String
+  name            String
+  description     String        @db.Text
+  location        String
+  startDate       DateTime
+  endDate         DateTime
+  status          ProjectStatus @default(PLANNING)
+  progress        Int           @default(0)
+  contractorName  String
+  contractValue   Decimal       @db.Decimal(20, 2)
+  blockchainTxHash String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  budget       Budget        @relation(fields: [budgetId], references: [id])
+  createdBy    User          @relation(fields: [createdById], references: [id])
+  transactions Transaction[]
+
+  @@index([budgetId])
+  @@index([createdById])
+  @@index([status])
+  @@map("projects")
+}
+
+model Transaction {
+  id                    String              @id @default(uuid())
+  budgetId              String
+  projectId             String?
+  createdById           String
+  description           String              @db.Text
+  amount                Decimal             @db.Decimal(20, 2)
+  category              TransactionCategory
+  recipientName         String
+  recipientAccount      String
+  status                TransactionStatus   @default(PENDING)
+  blockchainTxHash      String?
+  blockchainBlockNumber Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  budget    Budget     @relation(fields: [budgetId], references: [id])
+  project   Project?   @relation(fields: [projectId], references: [id])
+  createdBy User       @relation(fields: [createdById], references: [id])
+  auditLogs AuditLog[]
+  reports   Report[]
+
+  @@index([budgetId])
+  @@index([projectId])
+  @@index([createdById])
+  @@index([status])
+  @@map("transactions")
+}
+
+model AuditLog {
+  id              String      @id @default(uuid())
+  transactionId   String
+  auditorId       String
+  action          AuditAction
+  status          String
+  notes           String?     @db.Text
+  blockchainTxHash String?
+
+  createdAt DateTime @default(now())
+
+  transaction Transaction @relation(fields: [transactionId], references: [id])
+  auditor     User        @relation(fields: [auditorId], references: [id])
+
+  @@index([transactionId])
+  @@index([auditorId])
+  @@map("audit_logs")
+}
+
+model Report {
+  id            String       @id @default(uuid())
+  reporterId    String
+  transactionId String?
+  budgetId      String?
+  title         String
+  description   String       @db.Text
+  evidence      String?
+  status        ReportStatus @default(SUBMITTED)
+  adminNotes    String?      @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  reporter    User         @relation(fields: [reporterId], references: [id])
+  transaction Transaction? @relation(fields: [transactionId], references: [id])
+  budget      Budget?      @relation(fields: [budgetId], references: [id])
+
+  @@index([reporterId])
+  @@index([transactionId])
+  @@index([budgetId])
+  @@index([status])
+  @@map("reports")
+}
+
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String
+  title     String
+  message   String           @db.Text
+  type      NotificationType @default(INFO)
+  isRead    Boolean          @default(false)
+
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([isRead])
+  @@map("notifications")
+}
+
+model ActivityLog {
+  id        String  @id @default(uuid())
+  userId    String
+  action    String
+  entity    String
+  entityId  String?
+  details   Json?
+  ipAddress String?
+
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([entity])
+  @@index([createdAt])
+  @@map("activity_logs")
+}
